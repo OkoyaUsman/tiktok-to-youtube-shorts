@@ -1,24 +1,28 @@
-# TT2YT - TikTok to YouTube Shorts Converter Bot
+# TikTok to YouTube Shorts Bot
 
-A Telegram bot that automatically converts TikTok videos to YouTube Shorts format with custom text overlays. The bot handles video downloading, formatting, and direct upload to YouTube.
+A Telegram bot that automatically downloads TikTok videos, adds custom captions, and uploads them to YouTube as Shorts.
 
 ## Features
 
-- 🔄 Convert TikTok videos to YouTube Shorts format (9:16 aspect ratio)
-- 📝 Add custom text overlays with proper formatting and centering
-- 🤖 Telegram bot interface for easy interaction
-- 🎥 Automatic video processing with FFmpeg
-- 📤 Direct upload to YouTube
-- 🎨 Custom font support
+- 🔄 Download TikTok videos via URL
+- ✍️ Add custom captions with text overlay
+- 🎨 Automatic video formatting for YouTube Shorts (9:16 aspect ratio)
+- 📝 Custom metadata management:
+  - Title
+  - Description
+  - Tags
+- 🔍 Preview before upload
+- 🎯 Automatic hashtag formatting
 - 🧹 Automatic cleanup of temporary files
+- 📊 Detailed logging system
 
 ## Prerequisites
 
-- Python 3.7+
-- FFmpeg installed and accessible in PATH
+- Python 3.7 or higher
+- FFmpeg installed and accessible in system PATH
 - Telegram Bot Token
-- YouTube API Credentials
-- Custom font file (optional)
+- YouTube API credentials
+- Internet connection
 
 ## Installation
 
@@ -28,32 +32,34 @@ git clone https://github.com/okoyausman/tiktok-to-youtube-shorts.git
 cd tiktok-to-youtube-shorts
 ```
 
-2. Install required Python packages:
+2. Install required packages:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up FFmpeg:
-   - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
-   - macOS: `brew install ffmpeg`
-   - Linux: `sudo apt install ffmpeg`
+3. Install FFmpeg:
+   - **Windows**: Download from [FFmpeg website](https://ffmpeg.org/download.html) and add to PATH
+   - **Linux**: `sudo apt-get install ffmpeg`
+   - **macOS**: `brew install ffmpeg`
 
-4. Configure YouTube API:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+4. Set up YouTube API:
+   - Go to [Google Cloud Console](https://console.cloud.google.com)
    - Create a new project
    - Enable YouTube Data API v3
-   - Create OAuth 2.0 credentials with "Desktop App"
-   - Download credentials and save as `credentials.json` in the project directory
+   - Create OAuth 2.0 credentials
+   - Download credentials and save as `credentials.json` in project root
 
-5. Set up Telegram Bot:
-   - Create a new bot using [@BotFather](https://t.me/botfather)
-   - Get the bot token and update it in the code
+5. Create a Telegram bot:
+   - Message [@BotFather](https://t.me/botfather) on Telegram
+   - Create new bot and get token
+   - Update token in `bot.py`
 
 ## Configuration
 
-1. Place your custom font file (if any) as `font.ttf` in the project directory
+1. Place your `credentials.json` in the project root directory
 2. Update the Telegram bot token in `bot.py`
-3. Ensure `credentials.json` is in the project directory for YouTube API
+3. Create a `temp` directory in the project root (will be created automatically if not present)
+4. (Optional) Add a custom font file named `font.ttf` in the project root
 
 ## Usage
 
@@ -65,33 +71,59 @@ python bot.py
 2. In Telegram:
    - Send `/start` to begin
    - Send a TikTok video URL
-   - Provide caption text when prompted
-   - Review the formatted video
-   - Accept or reject the upload
+   - Add caption text
+   - Provide video title
+   - Add video description
+   - Enter tags (comma-separated)
+   - Review and confirm upload
 
 ## Project Structure
 
 ```
 tt2yt/
-├── bot.py              # Main bot code
+├── bot.py              # Main bot script
 ├── requirements.txt    # Python dependencies
 ├── credentials.json    # YouTube API credentials
+├── oauth2.json        # Generated OAuth token
 ├── font.ttf           # Custom font file (optional)
 ├── temp/              # Temporary files directory
-└── README.md          # This file
+└── log.txt           # Operation logs
 ```
 
 ## Dependencies
 
-- python-telegram-bot
-- google-api-python-client
-- google-auth-oauthlib
-- Pillow
-- requests
+- python-telegram-bot>=20.0
+- google-api-python-client>=2.0.0
+- google-auth-oauthlib>=1.0.0
+- Pillow>=9.0.0
+- requests>=2.0.0
+
+## Features in Detail
+
+### Video Processing
+- Automatically formats videos to 9:16 aspect ratio
+- Adds black background for proper Shorts display
+- Implements text overlay with custom font support
+- Handles video scaling and padding
+
+### Metadata Management
+- Custom title with automatic #shorts hashtag
+- Detailed description with formatted tags
+- Custom tag support with automatic hashtag formatting
+- Preview functionality before upload
+
+### File Management
+- Automatic temporary file cleanup
+- Organized file structure
+- Detailed logging system
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 
