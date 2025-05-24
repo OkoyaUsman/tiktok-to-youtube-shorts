@@ -209,19 +209,18 @@ def authenticate_youtube():
             f.write(creds.to_json())
     return build('youtube', 'v3', credentials=creds)
 
-def upload_youtube(video_path: str, caption: str) -> bool:
+def upload_youtube(video_path: str, title: str, description: str, tags: list) -> bool:
     video_id = None
     try:
         YouTube = authenticate_youtube()
-        tags = "meme,funny,local,weird,africa,europe,fails,core"
         request = YouTube.videos().insert(
             part = "snippet,status",
             body = {
                 "snippet": {
-                    "title": caption,
-                    "description": caption,
-                    "tags": tags.split(","),
-                    "categoryId": "22"
+                    "title": f"{title} #shorts #meme #funny",
+                    "description": f"{description} #shorts #meme #funny {' '.join(['#'+tag for tag in tags])}",
+                    "tags": tags,
+                    "categoryId": "24"
                 },
                 "status": {
                     "privacyStatus": "public",
@@ -231,7 +230,7 @@ def upload_youtube(video_path: str, caption: str) -> bool:
             media_body = MediaFileUpload(video_path)
         )
         response = request.execute()
-        log(f"✅ Uploaded: {caption}")
+        log(f"✅ Uploaded: {title}")
         video_id = response["id"]
     except Exception as e:
         log(f"Error while uploading to youtube: {str(e)}")
@@ -243,19 +242,21 @@ def log(*msg):
         log_writer.write(log_entry+'\n')
     print(log_entry)
 
-def cleanup_temp_files(video_path: str, formatted_path: str = None):
+def cleanup_temp_files():
     try:
-        if video_path:
-            original_path = os.path.join(path, f"temp/{video_path}.mp4")
-            if os.path.exists(original_path):
-                os.remove(original_path)
-                log(f"Cleaned up original video: {original_path}")
-
-        if formatted_path and os.path.exists(formatted_path):
-            os.remove(formatted_path)
-            log(f"Cleaned up formatted video: {formatted_path}")
+        temp_dir = os.path.join(path, "temp")
+        if os.path.exists(temp_dir):
+            for file in os.listdir(temp_dir):
+                file_path = os.path.join(temp_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        log(f"Cleaned up file: {file_path}")
+                except Exception as e:
+                    log(f"Error removing file {file_path}: {e}")
+            log("Temp directory cleaned successfully")
     except Exception as e:
-        log(f"Error cleaning up temp files: {e}")
+        log(f"Error cleaning up temp directory: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log("Got new chat.")
@@ -266,25 +267,63 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
-    # If user is waiting for caption
-    if user_id in user_states and user_states[user_id]['state'] == 'waiting_for_caption':
-        log("Making caption video.")
-        video_path = user_states[user_id]['video_path']
-        formatted_path = format_video(video_path, text)
-        if not formatted_path:
-            log("Failed to format the video.")
-            await update.message.reply_text("Failed to format the video. Please try again.")
+    # Handle different states
+    if user_id in user_states:
+        state = user_states[user_id]['state']
+        
+        if state == 'waiting_for_caption':
+            log("Making caption video.")
+            video_path = user_states[user_id]['video_path']
+            formatted_path = format_video(video_path, text)
+            if not formatted_path:
+                log("Failed to format the video.")
+                await update.message.reply_text("Failed to format the video. Please try again.")
+                return
+            log("Successfully formatted the video with caption.")
+            user_states[user_id] = {
+                'formatted_path': formatted_path,
+                'caption': text,
+                'state': 'waiting_for_title'
+            }
+            await update.message.reply_text("Video formatted successfully! Please provide a title for the video.")
             return
-        log("Successfully formatted the video with caption.")
-        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Accept", callback_data="accept"), InlineKeyboardButton("Reject", callback_data="reject")]])
-        user_states[user_id] = {
-            'formatted_path': formatted_path,
-            'caption': text,
-            'state': 'waiting_for_confirmation'
-        }
-        await update.message.reply_video(video=open(formatted_path, 'rb'), reply_markup=reply_markup)
-        return
+            
+        elif state == 'waiting_for_title':
+            user_states[user_id]['title'] = text
+            user_states[user_id]['state'] = 'waiting_for_description'
+            await update.message.reply_text("Great! Now please provide a description for the video.")
+            return
+            
+        elif state == 'waiting_for_description':
+            user_states[user_id]['description'] = text
+            user_states[user_id]['state'] = 'waiting_for_tags'
+            await update.message.reply_text("Almost done! Please provide tags for the video (comma-separated).")
+            return
+            
+        elif state == 'waiting_for_tags':
+            tags = [tag.strip() for tag in text.split(',')]
+            user_states[user_id]['tags'] = tags
+            user_states[user_id]['state'] = 'waiting_for_confirmation'
+            
+            # Show preview with all metadata
+            preview_text = (
+                f"📝 Title: {user_states[user_id]['title']}\n\n"
+                f"📄 Description: {user_states[user_id]['description']}\n\n"
+                f"🏷 Tags: {', '.join(tags)}\n\n"
+                "Please review and confirm the upload."
+            )
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("Accept", callback_data="accept"), 
+                 InlineKeyboardButton("Reject", callback_data="reject")]
+            ])
+            await update.message.reply_video(
+                video=open(user_states[user_id]['formatted_path'], 'rb'),
+                caption=preview_text,
+                reply_markup=reply_markup
+            )
+            return
     
+    # Handle URL input
     if not URL_PATTERN.match(text):
         log("Invalid URL")
         await update.message.reply_text("Please send a valid URL.")
@@ -313,38 +352,30 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Invalid state. Please start over.")
         return
     if query.data == "reject":
-        # Clean up files before removing state
-        cleanup_temp_files(
-            user_states[user_id].get('video_path'),
-            user_states[user_id].get('formatted_path')
-        )
         user_states.pop(user_id, None)
         log("Video rejected.")
         await query.message.reply_text("Video rejected. Please send a new URL.")
     elif query.data == "accept":
         formatted_path = user_states[user_id]['formatted_path']
-        caption = user_states[user_id]['caption']
-        uppy = upload_youtube(formatted_path, caption)
+        title = user_states[user_id]['title']
+        description = user_states[user_id]['description']
+        tags = user_states[user_id]['tags']
+        uppy = upload_youtube(formatted_path, title, description, tags)
         if uppy:
             log("Video successfully uploaded to youtube")
             await query.message.reply_text(f"Video successfully uploaded to youtube!\nhttps://youtube.com/shorts/{uppy}")
         else:
             log("Failed to upload video to youtube.")
             await query.message.reply_text("Failed to upload video to youtube.")
-        
-        # Clean up files after upload (whether successful or not)
-        cleanup_temp_files(
-            user_states[user_id].get('video_path'),
-            user_states[user_id].get('formatted_path')
-        )
         user_states.pop(user_id, None)
         await query.message.reply_text("Please send a new URL to process.")
+    cleanup_temp_files()
     await query.answer()
 
 def main():
     _ = authenticate_youtube()
     log("Running...")
-    application = Application.builder().token("7968267559:AAF_nXzpz2upEK2OyqPK_qmZh7S2oWZ3Tfo").build()
+    application = Application.builder().token("7654345678IH:SDFLKJHGFDFIUGFDFJKJHGFLKJHBV").build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     application.add_handler(CallbackQueryHandler(handle_callback))
